@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>手洗い妖怪バスターズ！</title>
+<style>
+*{box-sizing:border-box}
+body{
+ margin:0;background:#101a3b;color:white;
+ font-family:system-ui,"Arial",sans-serif;
+ text-align:center;
+}
+header{
+ padding:15px 8px;
+ background:linear-gradient(90deg,#392478,#17658b);
+}
+h1{margin:5px;color:#ffe36c;font-size:clamp(22px,5vw,34px)}
+button,input{font:inherit}
+button{
+ border:0;border-radius:12px;padding:12px;
+ background:#ffe16b;color:#28234b;font-weight:bold;
+ cursor:pointer;
+}
+button:disabled{opacity:.5}
+button:active{transform:scale(.97)}
+input{
+ padding:12px;border-radius:10px;border:2px solid #ffe16b;
+ width:90%;max-width:300px;
+}
+.panel{
+ background:#ffffff12;border:1px solid #ffffff35;
+ border-radius:18px;padding:15px;margin:12px auto;
+ width:min(94%,650px);
+}
+.hidden{display:none!important}
+.big{font-size:70px}
+.muted{color:#c4d4ff;font-size:13px}
+.stats{display:flex;justify-content:center;gap:12px;flex-wrap:wrap}
+.stat{background:#ffffff18;padding:8px 13px;border-radius:10px}
+.map{
+ display:grid;grid-template-columns:repeat(5,1fr);
+ gap:5px;max-width:390px;margin:15px auto;
+}
+.tile{
+ min-height:65px;padding:5px 1px;
+ background:#31577a;color:white;border:2px solid #7197b4;
+ border-radius:9px;font-size:12px;
+ display:flex;flex-direction:column;justify-content:center;
+}
+.tile.player{background:#c58d25;border-color:#ffe16b}
+.tile.place{background:#245f64}
+.tile span{font-size:23px}
+.dpad{
+ display:grid;grid-template-columns:repeat(3,55px);
+ justify-content:center;gap:5px;margin:12px;
+}
+.dpad button{padding:12px 5px;font-size:20px}
+.actions{display:flex;flex-wrap:wrap;justify-content:center;gap:8px}
+.hp{height:15px;background:#333;border-radius:20px;overflow:hidden;margin:8px}
+.hp div{height:100%;background:#ff6060;transition:.3s}
+.answer{display:block;width:100%;margin:8px 0;background:white}
+.card{
+ display:inline-block;background:#ffffff17;border-radius:12px;
+ padding:12px;margin:5px;min-width:100px;
+}
+#log{min-height:40px;line-height:1.7;color:#ffe88b}
+</style>
+</head>
+<body>
+
+<header>
+<h1>👻 手洗い妖怪バスターズ！</h1>
+<div>～清潔な学校を取り戻せ！～</div>
+</header>
+
+<section id="start" class="panel">
+ <div class="big">🧙‍♂️</div>
+ <h2>冒険者よ、学校を救え！</h2>
+ <p>主人公の名前を決めよう！</p>
+ <input id="heroInput" maxlength="12" placeholder="名前を入力してね">
+ <p><button onclick="newGame()">冒険を始める！ ⚔️</button></p>
+ <button onclick="loadGame()">💾 セーブデータから再開</button>
+ <p class="muted">※セーブデータがある場合に再開できるよ</p>
+</section>
+
+<main id="game" class="hidden">
+ <div class="panel">
+  <div id="heroName"></div>
+  <div class="stats">
+   <div class="stat">⭐ Lv.<span id="level">1</span></div>
+   <div class="stat">❤️ HP <span id="hp">100</span></div>
+   <div class="stat">✨ EXP <span id="exp">0</span></div>
+   <div class="stat">🏆 <span id="score">0</span>点</div>
+  </div>
+ </div>
+
+ <div class="panel">
+  <h2>🏫 学校の冒険マップ</h2>
+  <p class="muted">マスを選ぶか、矢印ボタンで移動しよう！</p>
+  <div class="map" id="map"></div>
+  <div class="dpad">
+   <span></span><button onclick="move(0,-1)">⬆️</button><span></span>
+   <button onclick="move(-1,0)">⬅️</button>
+   <button onclick="interact()">⚔️</button>
+   <button onclick="move(1,0)">➡️</button>
+   <span></span><button onclick="move(0,1)">⬇️</button><span></span>
+  </div>
+  <div id="location"></div>
+  <div id="log">冒険を始めよう！</div>
+  <div class="actions">
+   <button onclick="interact()">この場所を調べる 🔍</button>
+   <button onclick="showBook()">妖怪図鑑 📖</button>
+   <button onclick="saveGame()">セーブ 💾</button>
+  </div>
+ </div>
+
+ <div class="panel">
+  <h3>🤝 仲間の妖怪</h3>
+  <div id="team">まだ仲間はいないよ</div>
+ </div>
+
+ <div class="panel">
+  <h3>🏫 学校の手洗いミッション</h3>
+  <p>正しい手洗いを学んで学校を守ろう！</p>
+  <div id="mission">手洗い場でミッションに挑戦しよう！</div>
+ </div>
+</main>
+
+<section id="battle" class="panel hidden">
+ <h2>⚔️ 妖怪バトル！！</h2>
+ <div class="big" id="enemyFace">🦠</div>
+ <h3 id="enemyName"></h3>
+ <div>妖怪 HP</div>
+ <div class="hp"><div id="enemyHP"></div></div>
+ <div id="battleText"></div>
+ <div id="quiz"></div>
+ <div id="battleActions" class="actions"></div>
+</section>
+
+<section id="book" class="panel hidden">
+ <h2>📖 妖怪図鑑</h2>
+ <div id="bookContent"></div>
+ <button onclick="closeBook()">戻る</button>
+</section>
+
+<section id="finish" class="panel hidden">
+ <div class="big">🏆</div>
+ <h2>学校を救ったぞ！！</h2>
+ <div id="ending"></div>
+ <button onclick="backToGame()">冒険に戻る</button>
+</section>
+
+<script>
+const places=[
+ {x:0,y:0,name:"教室",icon:"🏫"},
+ {x:2,y:0,name:"図書室",icon:"📚"},
+ {x:4,y:0,name:"体育館",icon:"🏀"},
+ {x:0,y:2,name:"廊下",icon:"🚪"},
+ {x:2,y:2,name:"手洗い場",icon:"🚰"},
+ {x:4,y:2,name:"保健室",icon:"🏥"},
+ {x:0,y:4,name:"校庭",icon:"🌳"},
+ {x:2,y:4,name:"トイレ",icon:"🚻"},
+ {x:4,y:4,name:"校長室",icon:"👑"}
+];
+
+const yokai=[
+ {name:"アワアワン",face:"🫧",hp:40,exp:20},
+ {name:"バイキンスライム",face:"🦠",hp:55,exp:25},
+ {name:"ゆびまじん",face:"👾",hp:65,exp:30},
+ {name:"ヨゴレオニ",face:"👹",hp:80,exp:40},
+ {name:"カビカビン",face:"🍄",hp:90,exp:45}
+];
+
+const questions=[
+ {q:"手洗いの最初にすることは？",a:["水で手をぬらす","服で手をふく","何もしない"],c:0,e:"まず流水で手をぬらそう！"},
+ {q:"石けんで洗う場所は？",a:["手のひらだけ","指の間や親指、手の甲も","指先だけ"],c:1,e:"洗い残しやすい場所も丁寧に！"},
+ {q:"手洗いで大切なのは？",a:["急いで終わる","水だけで一瞬洗う","石けんで丁寧に洗う"],c:2,e:"石けんを使ってしっかり洗おう！"},
+ {q:"手を洗った後は？",a:["清潔なタオルでふく","服でふく","そのままにする"],c:0,e:"清潔なタオルやペーパーでふこう！"},
+ {q:"手洗いをするタイミングは？",a:["トイレの後や食事の前","寝ているとき","テレビの前"],c:0,e:"トイレの後や食事の前は大切！"},
+ {q:"指先を洗うには？",a:["指先を手のひらにこすりつける","指先は洗わない","水に一瞬つける"],c:0,e:"指先や爪の周りも忘れずに！"},
+ {q:"親指を洗う方法は？",a:["洗わない","反対の手で包んでねじり洗い","水をかけるだけ"],c:1,e:"親指も一本ずつ洗おう！"},
+ {q:"手を洗うときに使うものは？",a:["石けんと流水","お菓子","絵の具"],c:0,e:"石けんと流水を使おう！"}
+];
+
+let state={};
+let enemy=null;
+let currentQuestion=null;
+let battleBoss=false;
+let battleDone=false;
+let lastLocation="";
+
+function newGame(){
+ const name=document.getElementById("heroInput").value.trim()||"ハンター";
+ state={
+  name,x:2,y:2,level:1,hp:100,exp:0,score:0,
+  caught:[],visited:[],cleared:[],used:[],boss:false,
+  steps:0,questions:0
+ };
+ start();
+}
+
+function start(){
+ document.getElementById("start").classList.add("hidden");
+ document.getElementById("game").classList.remove("hidden");
+ update();
+}
+
+function update(){
+ document.getElementById("heroName").textContent="🧙 "+state.name+" の冒険";
+ document.getElementById("level").textContent=state.level;
+ document.getElementById("hp").textContent=state.hp;
+ document.getElementById("exp").textContent=state.exp;
+ document.getElementById("score").textContent=state.score;
+ renderMap();
+ renderTeam();
+}
+
+function renderMap(){
+ const map=document.getElementById("map");
+ map.innerHTML="";
+ for(let y=0;y<5;y++){
+  for(let x=0;x<5;x++){
+   const p=places.find(a=>a.x===x&&a.y===y);
+   const player=state.x===x&&state.y===y;
+   const b=document.createElement("button");
+   b.className="tile "+(player?"player":p?"place":"");
+   b.innerHTML="<span>"+(player?"🧙":p?p.icon:"🌿")+"</span>"+
+    (player?state.name:p?p.name:"");
+   b.onclick=()=>{
+    if(Math.abs(state.x-x)+Math.abs(state.y-y)===1){
+     state.x=x;state.y=y;state.steps++;update();
+     showLocation();
+    }else if(player) interact();
+    else say("隣のマスに移動してね！");
+   };
+   map.appendChild(b);
+  }
+ }
+ showLocation();
+}
+
+function showLocation(){
+ const p=places.find(a=>a.x===state.x&&a.y===state.y);
+ const name=p?p.name:"校内";
+ document.getElementById("location").textContent="📍 現在地："+name;
+}
+
+function say(t){document.getElementById("log").textContent=t;}
+
+function move(dx,dy){
+ const x=state.x+dx,y=state.y+dy;
+ if(x<0||x>4||y<0||y>4)return;
+ state.x=x;state.y=y;state.steps++;
+ update();
+ const p=places.find(a=>a.x===x&&a.y===y);
+ if(p){
+  say(p.name+"に到着！「この場所を調べる」で冒険しよう！");
+ }else{
+  say("校内を移動中……");
+ }
+}
+
+function interact(){
+ if(document.getElementById("battle").classList.contains("hidden")===false)return;
+ const p=places.find(a=>a.x===state.x&&a.y===state.y);
+ if(!p){say("気になる場所を探してみよう！");return;}
+
+ if(p.name==="手洗い場"){
+  if(!state.cleared.includes("手洗い場")){
+   state.cleared.push("手洗い場");
+   document.getElementById("mission").textContent=
+    "🚰 ミッション達成！石けんを使った手洗いを実際に練習しよう！";
+   say("手洗い場を調査！手洗いの力が高まった！");
+   state.score+=10;
+   update();
+  }else{
+   say("手洗い場を発見済み！実際に手洗いを練習してみよう！");
+  }
+ }else if(p.name==="校長室"){
+  if(!state.boss){
+   startBattle(true);
+  }else{
+   say("バイキン大王を倒した！学校は平和だ！");
+   showEnding();
+  }
+ }else if(p.name==="保健室"){
+  state.hp=100;update();
+  say("🏥 保健室でHPが全回復した！");
+ }else if(p.name==="図書室"){
+  showBook();
+ }else{
+  if(state.visited.includes(p.name)){
+   say(p.name+"は調査済みだよ！別の場所へ行こう！");
+  }else{
+   state.visited.push(p.name);
+   state.score+=10;
+   say(p.name+"を調査！何かの気配がする……");
+   if(Math.random()<0.8)startBattle(false);
+   else say("今回は妖怪がいなかった！");
+   update();
+  }
+ }
+}
+
+function startBattle(boss){
+ battleBoss=boss;
+ battleDone=false;
+ if(boss){
+  enemy={name:"バイキン大王",face:"👑",hp:160,max:160,exp:100};
+ }else{
+  const source=yokai[Math.floor(Math.random()*yokai.length)];
+  enemy={...source,max:source.hp};
+ }
+ document.getElementById("game").classList.add("hidden");
+ document.getElementById("battle").classList.remove("hidden");
+ document.getElementById("enemyFace").textContent=enemy.face;
+ document.getElementById("enemyName").textContent=enemy.name;
+ document.getElementById("battleText").textContent=
+  enemy.name+"が現れた！手洗いの知識で戦おう！";
+ document.getElementById("quiz").innerHTML="";
+ document.getElementById("battleActions").innerHTML="";
+ document.getElementById("enemyHP").style.width="100%";
+ nextQuiz();
+}
+
+function nextQuiz(){
+ if(battleDone)return;
+ currentQuestion=questions[Math.floor(Math.random()*questions.length)];
+ const quiz=document.getElementById("quiz");
+ quiz.innerHTML="<h3>"+currentQuestion.q+"</h3>";
+ currentQuestion.a.forEach((a,i)=>{
+  const b=document.createElement("button");
+  b.className="answer";
+  b.textContent=a;
+  b.onclick=()=>answer(i);
+  quiz.appendChild(b);
+ });
+ document.getElementById("battleActions").innerHTML=
+  '<button onclick="special()">✨ 必殺技！</button>';
+}
+
+function answer(i){
+ if(battleDone)return;
+ const buttons=document.querySelectorAll("#quiz button");
+ buttons.forEach(b=>b.disabled=true);
+ state.questions++;
+ if(i===currentQuestion.c){
+  const damage=25+state.level*5;
+  enemy.hp-=damage;
+  state.score+=20;
+  document.getElementById("battleText").textContent=
+   "✨ 大正解！ "+damage+"ダメージ！ "+currentQuestion.e;
+ }else{
+  document.getElementById("battleText").textContent=
+   "💦 残念！正解は「"+currentQuestion.a[currentQuestion.c]+"」！ "+
+   currentQuestion.e;
+  enemy.hp-=5;
+ }
+ refreshEnemy();
+ if(enemy.hp<=0){
+  victory();
+ }else{
+  setTimeout(nextQuiz,1600);
+ }
+}
+
+function special(){
+ if(battleDone)return;
+ if(state.level<2){
+  document.getElementById("battleText").textContent=
+   "必殺技はレベル2から使えるよ！クイズで経験値をためよう！";
+  return;
+ }
+ enemy.hp-=45+state.level*5;
+ document.getElementById("battleActions").innerHTML="";
+ document.getElementById("battleText").textContent=
+  "💧 必殺技！せっけんスプラッシュ！！";
+ refreshEnemy();
+ if(enemy.hp<=0)victory();
+ else setTimeout(nextQuiz,1200);
+}
+
+function refreshEnemy(){
+ document.getElementById("enemyHP").style.width=
+  Math.max(0,enemy.hp/enemy.max*100)+"%";
+}
+
+function victory(){
+ battleDone=true;
+ state.score+=30;
+ state.exp+=enemy.exp;
+ if(battleBoss){
+  state.boss=true;
+ }else{
+  if(!state.caught.includes(enemy.name)){
+   state.caught.push(enemy.name);
+  }
+ }
+ while(state.exp>=state.level*50){
+  state.exp-=state.level*50;
+  state.level++;
+  state.hp=100;
+  state.score+=20;
+ }
+ document.getElementById("battleText").textContent=
+  "🎉 "+enemy.name+"を倒した！！経験値を獲得！"+
+  (battleBoss?" 学校を救う最後の戦いに勝利した！":" 妖怪が仲間になった！");
+ document.getElementById("quiz").innerHTML="";
+ document.getElementById("battleActions").innerHTML=
+  '<button onclick="endBattle()">冒険に戻る！</button>';
+}
+
+function endBattle(){
+ document.getElementById("battle").classList.add("hidden");
+ document.getElementById("game").classList.remove("hidden");
+ update();
+ if(state.boss)showEnding();
+}
+
+function renderTeam(){
+ document.getElementById("team").innerHTML=state.caught.length?
+  state.caught.map(n=>{
+   const y=yokai.find(a=>a.name===n);
+   return '<div class="card">'+y.face+'<br>'+n+'</div>';
+  }).join("")
+  :"まだ仲間はいないよ！";
+}
+
+function showBook(){
+ document.getElementById("game").classList.add("hidden");
+ document.getElementById("book").classList.remove("hidden");
+ document.getElementById("bookContent").innerHTML=
+  yokai.map(y=>{
+   const has=state.caught.includes(y.name);
+   return '<div class="card">'+
+    (has?y.face:"❓")+"<br>"+(has?y.name:"？？？")+
+    '<br><small>'+(has?"仲間になった！":"未発見")+
+    '</small></div>';
+  }).join("");
+}
+
+function closeBook(){
+ document.getElementById("book").classList.add("hidden");
+ document.getElementById("game").classList.remove("hidden");
+}
+
+function showEnding(){
+ document.getElementById("finish").classList.remove("hidden");
+ document.getElementById("game").classList.add("hidden");
+ document.getElementById("ending").innerHTML=
+  "<h3>"+state.name+"、おめでとう！！</h3>"+
+  "<p>レベル："+state.level+"</p>"+
+  "<p>スコア："+state.score+"点</p>"+
+  "<p>仲間にした妖怪："+state.caught.length+"体</p>"+
+  "<p>これからも学校で正しい手洗いを続けよう！</p>";
+}
+
+function backToGame(){
+ document.getElementById("finish").classList.add("hidden");
+ document.getElementById("game").classList.remove("hidden");
+}
+
+function saveGame(){
+ localStorage.setItem("handYokaiSave",JSON.stringify(state));
+ say("💾 セーブ完了！また続きから遊べるよ！");
+}
+
+function loadGame(){
+ const data=localStorage.getItem("handYokaiSave");
+ if(!data){alert("セーブデータがないよ！");return;}
+ try{
+  state=JSON.parse(data);
+  start();
+ }catch(e){alert("データを読み込めなかったよ。");}
+}
+</script>
+</body>
+</html>
